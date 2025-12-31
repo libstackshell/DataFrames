@@ -613,10 +613,90 @@ namespace ScriptStack
             var df = GetDf(handle);
 
             int colIndex = ResolveColumnIndex(df, colSpec);
-            if (row < 0 || row >= df.Rows.Count) throw new ScriptStackException("row out of range");
+            if (row < 0 || row >= df.Rows.Count)
+                throw new ScriptStackException("row out of range");
 
-            df[row, colIndex] = value; // DataFrame indexer supports set
-            return 1;
+            var col = df.Columns[colIndex];
+            var targetType = col.DataType;
+
+            object coerced = CoerceForColumn(value, targetType);
+
+            try
+            {
+                // besser als df[row, colIndex] = ... (klarer & column-typed)
+                col[row] = coerced;
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                throw new ScriptStackException(
+                    $"df.Set failed: col='{col.Name}' type='{targetType?.Name}', " +
+                    $"value='{value}' ({value?.GetType().Name ?? "null"}): {ex.Message}"
+                );
+            }
+        }
+
+        private static object CoerceForColumn(object value, Type targetType)
+        {
+            if (value == null) return null;
+            if (targetType == null) return value;
+
+            // Falls Nullable<T> irgendwo auftauchen sollte (zur Sicherheit)
+            targetType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+            // Strings
+            if (targetType == typeof(string))
+                return value.ToString();
+
+            // Leere Strings -> null (praktisch bei CSV)
+            if (value is string s)
+            {
+                if (string.IsNullOrWhiteSpace(s)) return null;
+            }
+
+            // DateTime
+            if (targetType == typeof(DateTime))
+            {
+                if (value is DateTime dt) return dt;
+                if (value is string ds &&
+                    DateTime.TryParse(ds, CultureInfo.InvariantCulture,
+                        DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+                    return parsed;
+
+                // letzter Versuch
+                return Convert.ToDateTime(value, CultureInfo.InvariantCulture);
+            }
+
+            // Bool
+            if (targetType == typeof(bool))
+            {
+                if (value is bool b) return b;
+                if (value is string bs)
+                {
+                    if (bs == "1") return true;
+                    if (bs == "0") return false;
+                }
+                return Convert.ToBoolean(value, CultureInfo.InvariantCulture);
+            }
+
+            // Numerics/Enums/sonstiges (double -> long/int/etc.)
+            try
+            {
+                return Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                // Fallback: über String parsen (hilft bei exotischen Runtime-Number-Typen)
+                var vs = value.ToString() ?? "";
+                if (targetType == typeof(int)) return int.Parse(vs, CultureInfo.InvariantCulture);
+                if (targetType == typeof(long)) return long.Parse(vs, CultureInfo.InvariantCulture);
+                if (targetType == typeof(float)) return float.Parse(vs, CultureInfo.InvariantCulture);
+                if (targetType == typeof(double)) return double.Parse(vs, CultureInfo.InvariantCulture);
+                if (targetType == typeof(decimal)) return decimal.Parse(vs, CultureInfo.InvariantCulture);
+
+                // wenn alles scheitert: original werfen lassen
+                throw;
+            }
         }
 
         private ScriptStack.Runtime.ArrayList DfCol(List<object> p)
