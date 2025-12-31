@@ -1,2 +1,2 @@
 # DataFrames
-[microsoft.data.analysis](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.analysis.dataframe) functions
+[Microsoft.Data.Analysis.DataFrame](https://learn.microsoft.com/en-us/dotnet/api/microsoft.data.analysis.dataframe) functions
