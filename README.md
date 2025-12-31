@@ -79,7 +79,7 @@ function main() {
 	var p = df.FilterLike(h, "HistoricalPrice", "3_0884", 1);
 	print(df.Head(p, 10));
 
-	df.Set(h, 3, "HistoricalPrice", 123); // ERROR!!!!!
+	df.Set(h, 3, "HistoricalPrice", 123); 
 	
 	df.SetCsvFmt(h, "float=0.########;double=0.################;culture=invariant;quoteAll=0");
 	// oder
